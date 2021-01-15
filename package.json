@@ -1,0 +1,14 @@
+{
+  "name": "ppt2video",
+  "version": "1.0.0",
+  "description": "ppt(x) to video",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "haoluo2@iflytek.com",
+  "license": "ISC",
+  "dependencies": {
+    "del": "^6.0.0"
+  }
+}
