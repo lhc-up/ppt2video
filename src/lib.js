@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 function spawnAsync(cmd) {
     return new Promise((resolve, reject) => {
@@ -23,7 +25,24 @@ function spawnAsync(cmd) {
         });
     });
 }
+function getVbsPath(name) {
+    return path.join(__dirname, 'vbs', `${name}.vbs`);
+}
+// 路径是否存在
+function existPath(path) {
+    try {
+        if (path instanceof Array) {
+            return path.length && path.every(v => fs.existsSync(v));
+        } else {
+            return fs.existsSync(path);
+        }
+    } catch(err) {
+        return false;
+    }
+}
 
 module.exports = {
-    spawnAsync
+    spawnAsync,
+    getVbsPath,
+    existPath
 }

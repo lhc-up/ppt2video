@@ -2,8 +2,12 @@ const path = require('path');
 const del = require('del');
 const os = require('os');
 const fs = require('fs');
-const { spawnAsync } = require('./lib.js');
-const transitions = require('./transitions.js');
+const { transitions, getTransitionType } = require('./transitions.js');
+const {
+    spawnAsync,
+    getVbsPath,
+    existPath
+} = require('./lib.js');
 class PPT2video {
     constructor(options) {
         // 默认配置
@@ -16,8 +20,8 @@ class PPT2video {
                 // random，随机一种，
                 // randomAll,每页都随机,
                 // String,指定具体值
-                // Array，循环使用数组，TODO
-                type: this.getTransitionType('', 0),//转场动画
+                // Array，循环使用数组
+                type: getTransitionType('', 0),//转场动画
                 duration: 1//动画时间
             },
             tmpdir: os.tmpdir(),
@@ -27,20 +31,21 @@ class PPT2video {
         }
         Object.assign(config, options);
         this.config = config;
+        // tmpdir
+        this.mkCleanTempDir();
     }
     convert() {
         return new Promise(async (resolve, reject) => {
             try {
-                // tmpdir
-                await this.mkCleanTempDir();
-                if (!this.existPath(this.config.pptPath)) throw new Error('ppt文件不存在');
+                const { pptPath, audioFolder, resultFolder } = this.config;
                 // ppt -> img
-                await this.getSlideImgs();
+                const imgFolder = await this.getSlideImgs(pptPath);
                 // img + audio -> video
-                await this.getSlideVideos();
+                const videoFolder = await this.getSlideVideos(imgFolder, audioFolder);
                 // video + animate + video... -> video
-                await this.concatVideos(this.tmpdir.video);
-                resolve();
+                const videoName = path.basename(pptPath, path.extname(pptPath)) + '.mp4';
+                const resultPath = await this.concatVideos(videoFolder, resultFolder, videoName);
+                resolve(resultPath);
             } catch(err) {
                 reject(err);
             } 
@@ -53,90 +58,166 @@ class PPT2video {
         const img = path.join(base, 'img');//临时图片
         const video = path.join(base, 'video');//临时视频
         try {
-            await del(base);
+            del.sync(base);
             fs.mkdirSync(tmpdir);
-            fs.mkdirSync(base);
-            fs.mkdirSync(img);
-            fs.mkdirSync(video);
         } catch(err) { /**console.log('目录已存在') */ }
+        try { fs.mkdirSync(base); } catch(err) { /**console.log('目录已存在') */ }
+        try { fs.mkdirSync(img); } catch(err) { /**console.log('目录已存在') */ }
+        try { fs.mkdirSync(video); } catch(err) { /**console.log('目录已存在') */ }
         this.tmpdir = { base, img, video };
     }
-    // 通过VBS脚本转换ppt->img
-    getSlideImgs() {
+    /**
+     * 通过VBS脚本转换ppt->img
+     * @param {String} pptPath 需要转换的ppt路径
+     * @param {String} imgFolder 输出目录，可选
+     */
+    getSlideImgs(pptPath, imgFolder) {
         return new Promise((resolve, reject) => {
-            const vbsPath = this.getVbsPath('ppt2img');
-            if (!this.existPath(vbsPath)) {
+            if (!existPath(pptPath)) {
+                return reject(`getSlideImgs:ppt文件(${pptPath})不存在`);
+            }
+            
+            const vbsPath = getVbsPath('ppt2img');
+            if (!existPath(vbsPath)) {
                 return reject(`getSlideImgs:vbs脚本(${vbsPath})不存在`);
             }
+
+            if (!imgFolder || !existPath(imgFolder)) {
+                imgFolder = this.tmpdir.img;
+            }
+
             // 通过cscript命令执行vbs脚本，报错信息通过终端输出
-            const cmd = `cscript //nologo ${vbsPath} ${this.config.pptPath} ${this.tmpdir.img}`;
+            const cmd = `cscript //nologo ${vbsPath} ${pptPath} ${imgFolder}`;
             spawnAsync(cmd).then(() => {
-                resolve();
+                resolve(imgFolder);
             }).catch(err => {
                 reject(err);
             });
         });
     }
-    // 每页幻灯片转video，并添加音频
-    // video时长为音频时长
-    getSlideVideos() {
+    /**
+     * 幻灯片批量转video，并添加音频
+     * 图片、音频可能存在多种格式，这里不做过滤，目录中不要放其他无关文件
+     * @param {String} imgFolder 图片目录
+     * @param {String} audioFolder 音频目录
+     * @param {String} videoFolder 输出目录
+     * @returns {String} 输出目录
+     */
+    getSlideVideos(imgFolder, audioFolder, videoFolder) {
         return new Promise(async (resolve, reject) => {
+            if (!existPath(imgFolder)) {
+                imgFolder = this.tmpdir.img;
+            }
+            if (!existPath(audioFolder)) {
+                audioFolder = this.config.audioFolder;
+            }
+            if (!existPath(videoFolder)) {
+                videoFolder = this.tmpdir.video;
+            }
             try {
-                const imgFolder = this.tmpdir.img;
                 const imgList = fs.readdirSync(imgFolder);
-                const audioList = fs.readdirSync(this.config.audioFolder);
+                const audioList = fs.readdirSync(audioFolder);
                 for (let i = 0; i < imgList.length; i++) {
                     const imgPath = path.join(imgFolder, imgList[i]);
                     /**generate audio TODO//////////////////////////////////////// */
-                    const audioPath = path.join(this.config.audioFolder, audioList[i] || 'no-match-audio');
+                    const audioPath = path.join(audioFolder, audioList[i] || 'no-match-audio');
                     /**generate audio TODO//////////////////////////////////////// */
                     // TODO:选出跟图片对应的音频
-                    await this.img2video(imgPath, audioPath);
+                    await this.img2video(imgPath, audioPath, videoFolder);
                 }
-                resolve();
+                resolve(videoFolder);
             } catch(err) {
                 reject(err);
             }
         });
     }
-    img2video(imgPath, audioPath) {
+    /**
+     * img -> video
+     * @param {String} imgPath 图片地址
+     * @param {String} audioPath 音频地址，可选
+     * @param {String} videoFolder 输出目录，可选
+     * @returns {String} 输出目录
+     */
+    img2video(imgPath, audioPath, videoFolder) {
         return new Promise(async (resolve, reject) => {
-            // ffmpeg -hide_banner -loglevel quiet -loop 1 -i 1.PNG -i tip1.mp3 -c:v libx264 -c:a copy -t 5 -pix_fmt yuv420p -y 1.mp4
+            if (!existPath(imgPath)) {
+                return reject(`img2video:输入文件${imgPath}不存在`);
+            }
+
+            // output folder
+            if (!videoFolder || !existPath(videoFolder)) {
+                videoFolder = this.tmpdir.video;
+            }
+
             try {
-                // tip:拼接命令时加空格，放在前一条的末尾处
+                // ffmpeg -hide_banner -loglevel quiet -loop 1 -i 1.PNG -i tip1.mp3 \
+                // -c:v libx264 -c:a copy -t 5 -pix_fmt yuv420p -y 1.mp4
+                // tip:拼接命令时空格在前一条的末尾处
                 let cmd = `ffmpeg -hide_banner -loop 1 -i ${imgPath} `;
-                let duration = 0;
+                let duration = this.config.slideDuration;
                 // 有对应音频时，添加该音频，视频时长为音频时长
-                if (this.existPath(audioPath)) {
+                if (existPath(audioPath)) {
                     duration = await this.getDuration(audioPath);
                     cmd += `-i ${audioPath} -c:a copy `;
                 } else {
-                    duration = this.config.slideDuration;
                     // 添加静音流
                     cmd += '-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 ';
                 }
                 cmd += `-c:v libx264 -s 1920x1080 -pix_fmt yuv420p -t ${duration} -y `;
                 const videoName = path.basename(imgPath, path.extname(imgPath)) + '.mp4';
-                cmd += path.join(this.tmpdir.video, videoName);
+                cmd += path.join(videoFolder, videoName);
                 // 执行ffmpeg命令
                 await spawnAsync(cmd);
-                resolve();
+                resolve(videoFolder);
             } catch(err) {
                 return reject(err);
             }
         });
     }
-    concatVideos(videoFolder) {
+    /**
+     * 拼接视频
+     * @param {String} videoFolder 视频片段目录
+     * @param {String} resultFolder 输出目录
+     * @param {String} resultName 输出名称
+     * @param {Array} exts 合法的后缀名，除此之外的过滤掉
+     * @param {Function} sortFn 排序函数
+     * @returns {String} 输出文件路径
+     */
+    concatVideos(videoFolder, resultFolder, resultName='result.mp4', exts=['.mp4'], sortFn) {
         return new Promise(async (resolve, reject) => {
+            // 默认以文件名称末尾的数字大小排序（js默认是字典序）
+            // 可自定义排序函数
+            sortFn = sortFn || ((a, b) => {
+                const reg = /\d+/g;
+                const aIndex = (a.split('.')[0].match(reg) || [0]).reverse()[0];
+                const bIndex = (b.split('.')[0].match(reg) || [0]).reverse()[0];
+                return aIndex - bIndex;
+            });
+            if (!existPath(videoFolder)) {
+                videoFolder = this.tmpdir.video;
+            }
+            if (!existPath(resultFolder)) {
+                resultFolder = this.config.resultFolder;
+                try {
+                    fs.mkdirSync(resultFolder);
+                } catch(err) {/**console.log(err) */}
+            }
             try {
                 let cmd = 'ffmpeg -hide_banner ';
-                // TODO:videoList文件顺序，按照序号排序
                 const videoList = fs.readdirSync(videoFolder).filter(v => {
-                    return path.extname(v) === '.mp4';
-                });
+                    return exts.includes(path.extname(v));
+                }).sort(sortFn);
+
+                if (!videoList.length) {
+                    return reject('没有视频文件');
+                }
+
                 // 输入文件
-                const inputFiles = videoList.map(v => `-i ${path.join(videoFolder, v)}`).join(' ');
+                const inputFiles = videoList.map(v => {
+                    return `-i ${path.join(videoFolder, v)}`;
+                }).join(' ');
                 cmd += `${inputFiles} `;
+
                 if (this.config.animate.use) {
                     // 使用转场动画时，构造静音音频流输入，用来填补转场动画对应的音频（filter中处理）
                     cmd += '-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 ';
@@ -152,20 +233,22 @@ class PPT2video {
                 // cmd += '-profile:v high -level 3.1 -preset:v veryfast -keyint_min 72 -g 72 -sc_threshold 0 ';
                 // cmd += '-b:v 3000k -minrate 3000k -maxrate 6000k -bufsize 6000k ';
                 // cmd += '-b:a 128k -avoid_negative_ts make_zero -fflags +genpts -y ';
-                const pptPath = this.config.pptPath;
-                const videoName = path.basename(pptPath, path.extname(pptPath)) + '.mp4';
-                cmd += path.resolve(this.config.resultFolder, videoName);
+                const resultPath = path.resolve(resultFolder, resultName);
+                cmd += resultPath;
 
                 await spawnAsync(cmd);
-                // fs.writeFileSync(path.resolve('./doc/cmd.txt'), cmd);
-                resolve();
+                resolve(resultPath);
             } catch(err) {
                 reject(err);
             }
         });
     }
+    // 获取音频类型
     getDuration(audioPath) {
         return new Promise((resolve, reject) => {
+            if (!existPath(audioPath)) {
+                return reject('音频不存在');
+            }
             const cmd = `ffprobe -v quiet -print_format json -show_format ${audioPath}`;
             spawnAsync(cmd).then(data => {
                 const time = JSON.parse(data).format.duration;
@@ -210,30 +293,26 @@ class PPT2video {
         // 制作转场动画
         /***************************************************** */
         /***************************************************** */
-        // TODO:type支持多种配置
-        if (type instanceof Array) {
-            // TODO:循环使用数组中的值
-            type = this.getTransitionType('', 0);
-        }else if (type === 'random') {
-            type = this.getTransitionType();
-        } else {
-            // inturn,randomAll在循环中处理
+        if (type === 'random') {
+            type = getTransitionType();
         }
-        /***************************************************** */
-        /***************************************************** */
         countArr.forEach(i => {
             if (i < videoCount - 1) {
                 const v1 = `[v${i}1${i > 0 ? 1 : ''}]`;//[v01],[v111],[v211]
                 const v2 = `[v${i + 1}1${i + 1 === videoCount - 1 ? '' : 0}]`;//[v110],[v210],...[v81]
                 let currType;
                 if (type === 'inturn') {
-                    currType = this.getTransitionType('', i);
+                    currType = getTransitionType('', i);
                 } else if (type === 'randomAll') {
-                    currType = this.getTransitionType();
+                    currType = getTransitionType();
+                } else if (type instanceof Array) {
+                    currType = getTransitionType('', i, type);
                 }
                 scriptText += `${v1}${v2}xfade=transition=${currType || type}:duration=${duration}:offset=0[vt${i}];`;
             }
         });
+        /***************************************************** */
+        /***************************************************** */
         // 合并video和转场视频
         // scriptText += `[v0][vt0][v1][vt1]...[v7][vt7][v8]concat=n=17[video];`;
         scriptText += countArr.map(i => {
@@ -261,41 +340,11 @@ class PPT2video {
         }).join('');
         return scriptText;
     }
-    /**
-     * 获取转场动画类型
-     * @param {String} type 动画类型，不存在时取第一个
-     * @param {Number} index 序号，超出时从头开始，负数倒序
-     * @returns {String} 动画类型
-     */
-    getTransitionType(type, index) {
-        const len = transitions.length;
-        if (!!type) {
-            return transitions.includes(type) ? type : transitions[0];
-        }
-        if (Number.isInteger(index)) {
-            if (index >= 0) {
-                return index < len 
-                ? transitions[index] 
-                : transitions[index - len];
-            }
-            return this.getTransitionType(type, index + len);
-        }
-        const random = Math.floor(Math.random() * len);
-        return transitions[random];
-    }
-    // 路径是否存在
-    existPath(path) {
-        try {
-            return fs.existsSync(path);
-        } catch(err) {
-            return false;
-        }
-    }
     // 获取ppt版本
-    getPPTVersion() {
+    static getPPTVersion() {
         return new Promise((resolve, reject) => {
-            const vbsPath = this.getVbsPath('pptv');
-            if (!this.existPath(vbsPath)) {
+            const vbsPath = getVbsPath('pptv');
+            if (!existPath(vbsPath)) {
                 return reject(`getPPTVersion:vbs脚本(${vbsPath})不存在`);
             }
             const cmd = `cscript //nologo ${vbsPath}`;
@@ -305,9 +354,6 @@ class PPT2video {
                 reject(err);
             });
         });
-    }
-    getVbsPath(name) {
-        return path.join(process.cwd(), `src/vbs/${name}.vbs`);
     }
 }
 

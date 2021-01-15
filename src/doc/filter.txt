@@ -1,1 +1,0 @@
-[0:v]split[v0][v0copy];[v0copy]trim=0:1[v01];[1:v]split[v1][v1copy];[v1copy]trim=0:1[v11];[v01][v11]xfade=transition=slideright:duration=1:offset=0[vt0];[v0][vt0][v1]concat=n=3[video];[2:a]atrim=0:1[asilent];[asilent]asplit=1[asilent0];[0:a][asilent0][1:a]concat=n=3:v=0:a=1[audio]

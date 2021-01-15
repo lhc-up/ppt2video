@@ -268,6 +268,7 @@ const ppt2video = new PPT2video({
     audioFolder: path.resolve('./src/doc/audio'),
     slideDuration: 3
 });
+console.log(1)
 ppt2video.convert().then(data => {
     console.log(data);
 }).catch(err => {
