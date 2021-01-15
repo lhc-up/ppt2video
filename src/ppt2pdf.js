@@ -5,6 +5,7 @@ const fs = require('fs');
 const { transitions, getTransitionType } = require('./transitions.js');
 const {
     spawnAsync,
+    spawnFfmpegAsync,
     getVbsPath,
     existPath
 } = require('./lib.js');
@@ -183,7 +184,11 @@ class PPT2video {
      * @param {Function} sortFn 排序函数
      * @returns {String} 输出文件路径
      */
-    concatVideos(videoFolder, resultFolder, resultName='result.mp4', exts=['.mp4'], sortFn) {
+    concatVideos(videoFolder, resultFolder, {
+        resultName='result.mp4',
+        exts=['.mp4'],
+        sortFn
+    }, progressCb) {
         return new Promise(async (resolve, reject) => {
             // 默认以文件名称末尾的数字大小排序（js默认是字典序）
             // 可自定义排序函数
@@ -236,7 +241,18 @@ class PPT2video {
                 const resultPath = path.resolve(resultFolder, resultName);
                 cmd += resultPath;
 
-                await spawnAsync(cmd);
+                const inputCount = videoList.length;
+                let animateSeconds = 0;
+                // 有动画时需要加上转场动画耗时
+                const { use, duration } = this.config.animate;
+                if (use) {
+                    animateSeconds = (inputCount - 1) * duration;
+                }
+                await spawnFfmpegAsync(cmd, inputCount, animateSeconds, (percent, seconds, totalSeconds) => {
+                    if (progressCb && progressCb instanceof Function) {
+                        progressCb(percent, seconds, totalSeconds);
+                    }
+                });
                 resolve(resultPath);
             } catch(err) {
                 reject(err);
