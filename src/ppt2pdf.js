@@ -3,6 +3,7 @@ const del = require('del');
 const os = require('os');
 const fs = require('fs');
 const { spawnAsync } = require('./lib.js');
+const transitions = require('./transitions.js');
 class PPT2video {
     constructor(options) {
         // 默认配置
@@ -260,54 +261,26 @@ class PPT2video {
         }).join('');
         return scriptText;
     }
-    // 转场动画类型
-    // type:取具体值
-    // index：按序号取值
+    /**
+     * 获取转场动画类型
+     * @param {String} type 动画类型，不存在时取第一个
+     * @param {Number} index 序号，超出时从头开始，负数倒序
+     * @returns {String} 动画类型
+     */
     getTransitionType(type, index) {
-        // 变换效果
-        const transitions = [
-            "fade"       , 
-            "wipeleft"    ,
-            "wiperight"   ,
-            "wipeup"      ,
-            "wipedown"    ,
-            "slideleft"   ,
-            "slideright"  ,
-            "slideup"     ,
-            "slidedown"   ,
-            "circlecrop"  ,
-            "rectcrop"    ,
-            "distance"    ,
-            "fadeblack"   ,
-            "fadewhite"   ,
-            "radial"      ,
-            "smoothleft"  ,
-            "smoothright" ,
-            "smoothup"    ,
-            "smoothdown"  ,
-            "circleopen"  ,
-            "circleclose" ,
-            "vertopen"    ,
-            "vertclose"   ,
-            "horzopen"    ,
-            "horzclose"   ,
-            "dissolve"    ,
-            "pixelize"    ,
-            "diagtl"      ,
-            "diagtr"      ,
-            "diagbl"      ,
-            "diagbr"      ,
-        ];
-        if (type && transitions.includes(type)) return type;
-        if (index !== undefined) {
-            if (index < transitions.length) {
-                return transitions[index];
-            } else {
-                // 超过之后从头开始
-                return transitions[index - transitions.length]
-            }
+        const len = transitions.length;
+        if (!!type) {
+            return transitions.includes(type) ? type : transitions[0];
         }
-        const random = Math.floor(Math.random() * 31);
+        if (Number.isInteger(index)) {
+            if (index >= 0) {
+                return index < len 
+                ? transitions[index] 
+                : transitions[index - len];
+            }
+            return this.getTransitionType(type, index + len);
+        }
+        const random = Math.floor(Math.random() * len);
         return transitions[random];
     }
     // 路径是否存在
@@ -337,6 +310,9 @@ class PPT2video {
         return path.join(process.cwd(), `src/vbs/${name}.vbs`);
     }
 }
+
+// statics
+PPT2video.transitions = transitions;
 
 module.exports = {
     PPT2video
