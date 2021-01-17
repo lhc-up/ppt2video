@@ -2,6 +2,10 @@
 
 ppt(x)转视频，目前仅支持windows
 
+ms office ppt(x)转图片
+
+ffmpeg 图片转视频并添加音频，拼接视频并添加转场动画
+
 ## Install
 
 ```bash
