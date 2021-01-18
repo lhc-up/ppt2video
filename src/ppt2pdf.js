@@ -91,7 +91,7 @@ class PPT2video {
                 const version = await getPPTVersion();
                 if (!version) return reject('未检测到ppt版本');
             } catch(err) {
-                return reject('获取ppt软件版本失败！' + err);
+                return reject('未检测到ppt版本，未安装office PowerPoint，或不可用');
             }
             if (!existPath(pptPath)) {
                 return reject(`getSlideImgs:ppt文件(${pptPath})不存在`);
