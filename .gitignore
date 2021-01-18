@@ -104,3 +104,5 @@ dist
 .tern-port
 
 src/doc/video/
+src/example/temp
+src/example/result
