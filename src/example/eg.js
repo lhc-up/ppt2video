@@ -1,7 +1,7 @@
 const { PPT2video } = require('../ppt2pdf.js');
 const path = require('path');
 const ppt2video = new PPT2video({
-    pptPath: path.resolve('../doc/test.pptx'),
+    pptPath: path.resolve('../doc/《摆渡船阅读》四下样本.pptx'),
     animate: {
         use: true,
         // type: 'vertclose',
@@ -22,13 +22,19 @@ const videoFolder = path.resolve(__dirname, '../doc/video');
 // }).catch(err => {
 //     console.log(err);
 // });
-
-ppt2video.concatVideos(videoFolder, path.dirname(videoFolder), {
-    resultName: 'hhhhhhhresult.mp4'
-}, (a, b, c) =>{
-    console.log(a, b, c);
+ppt2video.convert(percent => {
+    console.log(percent)
 }).then(data => {
-    console.log(data)
+    console.log(data);
 }).catch(err => {
     console.log(err);
-});
+})
+// ppt2video.concatVideos(videoFolder, path.dirname(videoFolder), {
+//     resultName: 'hhhhhhhresult.mp4'
+// }, (a, b, c) =>{
+//     console.log(a, b, c);
+// }).then(data => {
+//     console.log(data)
+// }).catch(err => {
+//     console.log(err);
+// });

@@ -35,17 +35,29 @@ class PPT2video {
         // tmpdir
         this.mkCleanTempDir();
     }
-    convert() {
+    convert(progressCb) {
         return new Promise(async (resolve, reject) => {
             try {
                 const { pptPath, audioFolder, resultFolder } = this.config;
                 // ppt -> img
                 const imgFolder = await this.getSlideImgs(pptPath);
                 // img + audio -> video
-                const videoFolder = await this.getSlideVideos(imgFolder, audioFolder);
+                const getSlideVideosScale = 0.42;
+                const concatVideosScale = 1 - getSlideVideosScale;
+                const videoFolder = await this.getSlideVideos(imgFolder, audioFolder, '', (percent, cur, total) => {
+                    if (progressCb && progressCb instanceof Function) {
+                        progressCb(percent * getSlideVideosScale);
+                    }
+                });
                 // video + animate + video... -> video
                 const videoName = path.basename(pptPath, path.extname(pptPath)) + '.mp4';
-                const resultPath = await this.concatVideos(videoFolder, resultFolder, videoName);
+                const resultPath = await this.concatVideos(videoFolder, resultFolder, {
+                    resultName: videoName
+                }, (percent, cur, total) => {
+                    if (progressCb && progressCb instanceof Function) {
+                        progressCb(percent * concatVideosScale + getSlideVideosScale * 100);
+                    }
+                });
                 resolve(resultPath);
             } catch(err) {
                 reject(err);
@@ -104,7 +116,7 @@ class PPT2video {
      * @param {String} videoFolder 输出目录
      * @returns {String} 输出目录
      */
-    getSlideVideos(imgFolder, audioFolder, videoFolder) {
+    getSlideVideos(imgFolder, audioFolder, videoFolder, progressCb) {
         return new Promise(async (resolve, reject) => {
             if (!existPath(imgFolder)) {
                 imgFolder = this.tmpdir.img;
@@ -125,6 +137,10 @@ class PPT2video {
                     /**generate audio TODO//////////////////////////////////////// */
                     // TODO:选出跟图片对应的音频
                     await this.img2video(imgPath, audioPath, videoFolder);
+                    if (progressCb && progressCb instanceof Function) {
+                        const percent = Math.round((i + 1) / imgList.length * 10000) / 100;
+                        progressCb(percent, i + 1, imgList.length);
+                    }
                 }
                 resolve(videoFolder);
             } catch(err) {
