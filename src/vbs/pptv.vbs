@@ -1,2 +1,8 @@
+On Error Resume Next
 Set ppt = WScript.CreateObject("PowerPoint.Applicatdion")
-WSH.Echo ppt.Version
+
+if Err <> 0 Then
+    WSH.Echo Err.Description
+else
+    WSH.Echo ppt.Version
+End If

@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { parse } = require('path');
 function spawnAsync(cmd, progressCb) {
     return new Promise((resolve, reject) => {
         const cmdArr = cmd.split(' ');
@@ -82,6 +83,26 @@ function getSecondsFromStd(data, reg) {
     const [hour, minute, second] = time.split(':').map(v => parseFloat(v));
     return hour * 3600 + minute * 60 + second;
 }
+// 获取ppt软件版本
+function getPPTVersion() {
+    return new Promise((resolve, reject) => {
+        const vbsPath = getVbsPath('pptv');
+        if (!existPath(vbsPath)) {
+            return reject(`getPPTVersion:vbs脚本(${vbsPath})不存在`);
+        }
+        const cmd = `cscript //nologo ${vbsPath}`;
+        spawnAsync(cmd).then(v => {
+            const version = parseFloat(v);
+            if (!!version) {
+                resolve(version)
+            } else {
+                reject(v);
+            }
+        }).catch(err => {
+            reject(err);
+        });
+    });
+}
 function getVbsPath(name) {
     return path.join(__dirname, 'vbs', `${name}.vbs`);
 }
@@ -102,5 +123,6 @@ module.exports = {
     spawnAsync,
     spawnFfmpegAsync,
     getVbsPath,
-    existPath
+    existPath,
+    getPPTVersion
 }

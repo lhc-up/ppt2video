@@ -7,7 +7,8 @@ const {
     spawnAsync,
     spawnFfmpegAsync,
     getVbsPath,
-    existPath
+    existPath,
+    getPPTVersion
 } = require('./lib.js');
 class PPT2video {
     constructor(options) {
@@ -85,7 +86,13 @@ class PPT2video {
      * @param {String} imgFolder 输出目录，可选
      */
     getSlideImgs(pptPath, imgFolder) {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const version = await getPPTVersion();
+                if (!version) return reject('未检测到ppt版本');
+            } catch(err) {
+                return reject('获取ppt软件版本失败！' + err);
+            }
             if (!existPath(pptPath)) {
                 return reject(`getSlideImgs:ppt文件(${pptPath})不存在`);
             }
@@ -376,25 +383,11 @@ class PPT2video {
         }).join('');
         return scriptText;
     }
-    // 获取ppt版本
-    static getPPTVersion() {
-        return new Promise((resolve, reject) => {
-            const vbsPath = getVbsPath('pptv');
-            if (!existPath(vbsPath)) {
-                return reject(`getPPTVersion:vbs脚本(${vbsPath})不存在`);
-            }
-            const cmd = `cscript //nologo ${vbsPath}`;
-            spawnAsync(cmd).then(version => {
-                resolve(version);
-            }).catch(err => {
-                reject(err);
-            });
-        });
-    }
 }
 
 // statics
 PPT2video.transitions = transitions;
+PPT2video.getPPTVersion = getPPTVersion;
 
 module.exports = {
     PPT2video
