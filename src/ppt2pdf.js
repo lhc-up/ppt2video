@@ -155,7 +155,7 @@ class PPT2video {
      * @param {String} videoFolder 输出目录，可选
      * @returns {String} 输出目录
      */
-    img2video(imgPath, audioPath, videoFolder) {
+    img2video(imgPath, audioPath, videoFolder, progressCb) {
         return new Promise(async (resolve, reject) => {
             if (!existPath(imgPath)) {
                 return reject(`img2video:输入文件${imgPath}不存在`);
@@ -184,7 +184,11 @@ class PPT2video {
                 const videoName = path.basename(imgPath, path.extname(imgPath)) + '.mp4';
                 cmd += path.join(videoFolder, videoName);
                 // 执行ffmpeg命令
-                await spawnAsync(cmd);
+                await spawnFfmpegAsync(cmd, 1, 0, (percent, seconds, totalSeconds) => {
+                    if (progressCb && progressCb instanceof Function) {
+                        progressCb(percent, seconds, totalSeconds);
+                    }
+                });
                 resolve(videoFolder);
             } catch(err) {
                 return reject(err);
@@ -275,7 +279,7 @@ class PPT2video {
             }
         });
     }
-    // 获取音频类型
+    // 获取音频时长
     getDuration(audioPath) {
         return new Promise((resolve, reject) => {
             if (!existPath(audioPath)) {
