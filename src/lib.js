@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { parse } = require('path');
 function spawnAsync(cmd, progressCb) {
     return new Promise((resolve, reject) => {
         const cmdArr = cmd.split(' ');
