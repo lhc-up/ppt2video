@@ -1,5 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+const AdmZip = require('adm-zip');
+const xml2js = require('xml2js');
 const { spawn } = require('child_process');
 function spawnAsync(cmd, progressCb) {
     return new Promise((resolve, reject) => {
@@ -117,11 +119,77 @@ function existPath(path) {
         return false;
     }
 }
+// 读取ppt每页备注
+function getNotes(pptxPath) {
+    return new Promise(async (resolve, reject) => {
+        if (!existPath(pptxPath)) {
+            return reject('pptx文件不存在');
+        }
+        console.log('getNotes, 正在读取注释内容...');
+        const noteList = [];
+        const zip = new AdmZip(pptxPath);
+        const zipEntries = zip.getEntries().filter(v => {
+            return v.entryName.includes('ppt/notesSlides');
+        });
+        // 注释,.xml对应的是注释文件
+        const noteEntries = zipEntries.filter(v => {
+            return path.extname(v.entryName) === '.xml';
+        });
+        // 关联文件,.xml.rels对应的是该注释文件的关联关系
+        const relsEntries = zipEntries.filter(v => {
+            return path.extname(v.entryName) === '.rels';
+        });
+        for (let i = 0; i < noteEntries.length; i++) {
+            const entry = noteEntries[i];
+            const note = {
+                slide: '',//对应幻灯片序号
+                text: []//文本内容
+            };
+            try {
+                note.text = await getText(entry);
+                // 读取关联xml
+                const noteName = path.basename(entry.entryName);
+                const relsEntry = relsEntries.find(v => {
+                    return v.entryName.includes(noteName);
+                });
+                note.slide = await getSlide(relsEntry);
+                noteList.push(note);
+            } catch(err) {
+                console.log(err);
+            }
+        }
+        resolve(noteList);
+    });
+}
+function getText(entry) {
+    // 读取注释节点
+    return new Promise((resolve, reject) => {
+        if (!entry || !entry.getData) {
+            return reject(new Error('-_-'));
+        }
+        const xml = entry.getData().toString('utf8');
+        xml2js.parseStringPromise(xml).then(result => {
+            // 按zip格式解压pptx文件，ppt/notesSlides文件夹下即为注释相关文件
+            // notesSlide*.xml是注释内容文件
+            // _rels文件夹下为对应的关联文件
+            // 解析xml文件，得到注释文本
+            // 以下获取文本节点的方式未经详细测试，注释格式复杂时可能出现问题
+            const rows = result['p:notes']['p:cSld'][0]['p:spTree'][0]['p:sp'][1]['p:txBody'][0]['a:p'];
+            const textArr = rows.map(row => {
+                return (row['a:r']||[]).map(v => v['a:t']).flat().join('');
+            });
+            resolve(textArr);
+        }).catch(err => {
+            reject(err);
+        });
+    });
+}
 
 module.exports = {
     spawnAsync,
     spawnFfmpegAsync,
     getVbsPath,
     existPath,
-    getPPTVersion
+    getPPTVersion,
+    getNotes
 }

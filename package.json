@@ -9,6 +9,8 @@
   "author": "haoluo2@iflytek.com",
   "license": "ISC",
   "dependencies": {
-    "del": "^6.0.0"
+    "adm-zip": "^0.5.1",
+    "del": "^6.0.0",
+    "xml2js": "^0.4.23"
   }
 }
