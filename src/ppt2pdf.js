@@ -9,6 +9,7 @@ const {
     getVbsPath,
     existPath,
     getPPTVersion,
+    getNotes,
     isOSValid
 } = require('./lib.js');
 class PPT2video {
@@ -393,6 +394,7 @@ class PPT2video {
 // statics
 PPT2video.transitions = transitions;
 PPT2video.getPPTVersion = getPPTVersion;
+PPT2video.getNotes = getNotes;
 
 module.exports = {
     PPT2video
