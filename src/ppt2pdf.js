@@ -8,8 +8,12 @@ const {
     spawnFfmpegAsync,
     getVbsPath,
     existPath,
-    getPPTVersion
+    getPPTVersion,
+    isOSValid
 } = require('./lib.js');
+// ffmpeg下载及使用参考
+// https://www.ffmpeg.org/
+// https://trac.ffmpeg.org/wiki
 class PPT2video {
     constructor(options) {
         // 默认配置
@@ -75,6 +79,7 @@ class PPT2video {
             del.sync(base);
             fs.mkdirSync(tmpdir);
         } catch(err) { /**console.log('目录已存在') */ }
+        // node < 10,依次创建目录及文件
         try { fs.mkdirSync(base); } catch(err) { /**console.log('目录已存在') */ }
         try { fs.mkdirSync(img); } catch(err) { /**console.log('目录已存在') */ }
         try { fs.mkdirSync(video); } catch(err) { /**console.log('目录已存在') */ }
@@ -87,6 +92,9 @@ class PPT2video {
      */
     getSlideImgs(pptPath, imgFolder) {
         return new Promise(async (resolve, reject) => {
+            if (!isOSValid()) {
+                return reject('getSlideImgs方法仅支持windows系统');
+            }
             try {
                 const version = await getPPTVersion();
                 if (!version) return reject('未检测到ppt版本');
