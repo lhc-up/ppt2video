@@ -37,7 +37,7 @@ const transitions = [
  * 获取转场动画类型
  * @param {String} type 动画类型，不存在时取第一个
  * @param {Number} index 序号，超出时从头开始，负数倒序
- * @param {Array} typeArr 传入的类型组合
+ * @param {Array} typeArr 传入的类型组合，优先使用传入的类型
  * @returns {String} 动画类型
  */
 function getTransitionType(type, index, typeArr=[]) {

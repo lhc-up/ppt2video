@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
 const xml2js = require('xml2js');
+const os = require('os');
 const { spawn } = require('child_process');
 function spawnAsync(cmd, progressCb) {
     return new Promise((resolve, reject) => {
@@ -84,9 +85,18 @@ function getSecondsFromStd(data, reg) {
     const [hour, minute, second] = time.split(':').map(v => parseFloat(v));
     return hour * 3600 + minute * 60 + second;
 }
+
+// 目前仅支持windows
+function isOSValid() {
+    return os.platform() === 'win32';
+}
+
 // 获取ppt软件版本
 function getPPTVersion() {
     return new Promise((resolve, reject) => {
+        if (!isOSValid()) {
+            return reject('getPPTVersion函数仅支持windows系统');
+        }
         const vbsPath = getVbsPath('pptv');
         if (!existPath(vbsPath)) {
             return reject(`getPPTVersion:vbs脚本(${vbsPath})不存在`);
@@ -191,5 +201,6 @@ module.exports = {
     getVbsPath,
     existPath,
     getPPTVersion,
-    getNotes
+    getNotes,
+    isOSValid
 }
