@@ -6,6 +6,10 @@ ms office ppt(x)转图片
 
 ffmpeg 图片转视频并添加音频，拼接视频并添加转场动画
 
+ffmpeg下载及使用参考，[官网](https://www.ffmpeg.org/)、[wiki](https://trac.ffmpeg.org/wiki)
+
+在命令行中使用时，需保证ffmpeg命令可执行。如需打包到electron中，可使用ffmpeg二进制文件
+
 ## Install
 
 ```bash

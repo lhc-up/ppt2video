@@ -11,9 +11,6 @@ const {
     getPPTVersion,
     isOSValid
 } = require('./lib.js');
-// ffmpeg下载及使用参考
-// https://www.ffmpeg.org/
-// https://trac.ffmpeg.org/wiki
 class PPT2video {
     constructor(options) {
         // 默认配置
